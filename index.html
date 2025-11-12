@@ -24,6 +24,9 @@
         .btn-success:hover { background: #059669; }
         .btn-danger { background: #ef4444; }
         .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: #f59e0b; }
+        .btn-warning:hover { background: #d97706; }
+        .btn-small { padding: 6px 12px; font-size: 14px; margin-right: 5px; }
         
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
@@ -32,10 +35,16 @@
         
         .form-row { display: grid; grid-template-columns: 80px 1fr; gap: 10px; }
         
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); color: white; padding: 25px; border-radius: 12px; }
-        .stat-label { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
-        .stat-value { font-size: 36px; font-weight: bold; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .stat-card { color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stat-card.own { background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); }
+        .stat-card.rival { background: linear-gradient(135deg, #f97316 0%, #c2410c 100%); }
+        .stat-label { font-size: 13px; opacity: 0.95; margin-bottom: 8px; font-weight: 500; }
+        .stat-value { font-size: 32px; font-weight: bold; }
+        
+        .stats-section { margin-top: 30px; }
+        .stats-header { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .stats-header h3 { color: #333; font-size: 20px; }
         
         table { width: 100%; border-collapse: collapse; }
         th { background: #f8f9fa; padding: 15px; text-align: left; font-weight: 600; color: #495057; border-bottom: 2px solid #dee2e6; }
@@ -77,6 +86,23 @@
         .zone-btn.selected { background: #ec4899; color: white; border-color: #ec4899; }
         
         .player-number { display: inline-block; background: #ec4899; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-right: 8px; min-width: 30px; text-align: center; }
+        
+        .comparison-table { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center; margin: 20px 0; }
+        .comparison-own { text-align: right; }
+        .comparison-rival { text-align: left; }
+        .comparison-label { text-align: center; font-weight: 600; color: #666; padding: 10px 0; }
+        .comparison-value { font-size: 32px; font-weight: bold; padding: 15px; border-radius: 8px; }
+        .comparison-value.own { color: #3b82f6; background: #dbeafe; }
+        .comparison-value.rival { color: #f97316; background: #fed7aa; }
+        
+        /* Modal para editar */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal.show { display: block; }
+        .modal-content { background: white; margin: 5% auto; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h2 { color: #333; }
+        .modal-close { font-size: 28px; font-weight: bold; color: #999; cursor: pointer; }
+        .modal-close:hover { color: #333; }
     </style>
 </head>
 <body>
@@ -151,6 +177,7 @@
             <div style="margin-bottom: 20px;">
                 <button class="btn" onclick="showTab('matches')">⚽ Partidos</button>
                 <button class="btn btn-secondary" onclick="showTab('players')">👥 Jugadores</button>
+                <button class="btn btn-secondary" onclick="showTab('history')">📊 Histórico</button>
                 <button class="btn btn-secondary" onclick="showTab('newMatch')">+ Nuevo Partido</button>
             </div>
 
@@ -192,6 +219,12 @@
                 <div id="playersTable"></div>
             </div>
 
+            <!-- TAB: HISTÓRICO DE ESTADÍSTICAS -->
+            <div id="historyTab" class="card hidden">
+                <h2>📊 Histórico de Estadísticas por Partido</h2>
+                <div id="historyContent"></div>
+            </div>
+
             <!-- TAB: NUEVO PARTIDO -->
             <div id="newMatchTab" class="card hidden">
                 <h2>Crear Nuevo Partido</h2>
@@ -231,6 +264,8 @@
                 <div style="margin-bottom: 20px; text-align: center;">
                     <button class="btn btn-success" id="startMatchBtn" onclick="startMatch()">Iniciar Partido</button>
                     <button class="btn btn-danger" id="finishMatchBtn" onclick="finishMatch()" style="display: none;">Finalizar Partido</button>
+                    <button class="btn btn-warning" id="editMatchBtn" onclick="showEditMatch()">Editar Partido</button>
+                    <button class="btn btn-danger" id="deleteMatchBtn" onclick="deleteMatch()">Eliminar Partido</button>
                     <button class="btn btn-secondary" onclick="showTab('matches')">Volver a Partidos</button>
                 </div>
 
@@ -295,12 +330,18 @@
                             <button class="event-btn offensive" onclick="recordEvent('shot_blocked', 'offensive')">🚫 Tiro Bloqueado</button>
                             <button class="event-btn offensive" onclick="recordEvent('pass_completed', 'offensive')">✅ Pase Completado</button>
                             <button class="event-btn offensive" onclick="recordEvent('pass_failed', 'offensive')">❌ Pase Fallado</button>
+                            <button class="event-btn offensive" onclick="recordEvent('assist', 'offensive')">🅰️ Asistencia</button>
+                            <button class="event-btn offensive" onclick="recordEvent('dribble_success', 'offensive')">🏃 Regate Exitoso</button>
+                            <button class="event-btn offensive" onclick="recordEvent('corner', 'offensive')">🚩 Córner</button>
                             <button class="event-btn defensive" onclick="recordEvent('interception', 'defensive')">🛡️ Intercepción</button>
                             <button class="event-btn defensive" onclick="recordEvent('tackle_won', 'defensive')">🦵 Entrada Limpia</button>
                             <button class="event-btn defensive" onclick="recordEvent('tackle_foul', 'defensive')">⚠️ Entrada con Falta</button>
                             <button class="event-btn defensive" onclick="recordEvent('clearance', 'defensive')">🧤 Despeje</button>
                             <button class="event-btn defensive" onclick="recordEvent('recovery', 'defensive')">📍 Recuperación</button>
+                            <button class="event-btn defensive" onclick="recordEvent('save', 'defensive')">🧤 Parada</button>
                             <button class="event-btn other" onclick="recordEvent('ball_lost', 'other')">❌ Pérdida</button>
+                            <button class="event-btn other" onclick="recordEvent('offside', 'other')">⚠️ Fuera de Juego</button>
+                            <button class="event-btn other" onclick="recordEvent('foul', 'other')">⚠️ Falta</button>
                             <button class="event-btn other" onclick="recordEvent('yellow_card', 'other')">🟨 Amarilla</button>
                             <button class="event-btn other" onclick="recordEvent('red_card', 'other')">🟥 Roja</button>
                         </div>
@@ -310,12 +351,71 @@
                     <div id="eventsList"></div>
                 </div>
 
-                <!-- ESTADÍSTICAS -->
+                <!-- ESTADÍSTICAS DEL PARTIDO -->
                 <div id="statsSection" class="hidden">
-                    <h3>Estadísticas del Partido</h3>
-                    <div id="matchStats"></div>
+                    <div class="stats-section">
+                        <div class="stats-header">
+                            <h3>📊 Estadísticas Completas del Partido</h3>
+                        </div>
+                        <div id="matchStats"></div>
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR PARTIDO -->
+    <div id="editMatchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Partido</h2>
+                <span class="modal-close" onclick="closeEditMatchModal()">&times;</span>
+            </div>
+            <div class="form-group">
+                <label>Equipo Rival:</label>
+                <input type="text" id="editRivalName">
+            </div>
+            <div class="form-group">
+                <label>Fecha del Partido:</label>
+                <input type="date" id="editMatchDate">
+            </div>
+            <div class="form-group">
+                <label>Competición:</label>
+                <input type="text" id="editCompetition">
+            </div>
+            <div class="form-group">
+                <label>Tipo de Partido:</label>
+                <select id="editIsHome">
+                    <option value="true">Local (en casa)</option>
+                    <option value="false">Visitante (fuera)</option>
+                </select>
+            </div>
+            <button class="btn btn-success" onclick="saveMatchEdit()">Guardar Cambios</button>
+            <button class="btn btn-secondary" onclick="closeEditMatchModal()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR EVENTO -->
+    <div id="editEventModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Evento</h2>
+                <span class="modal-close" onclick="closeEditEventModal()">&times;</span>
+            </div>
+            <div class="form-group">
+                <label>Minuto:</label>
+                <input type="number" id="editEventMinute" min="0" max="120">
+            </div>
+            <div class="form-group">
+                <label>Zona del Campo:</label>
+                <select id="editEventZone">
+                    <option value="defensive">🛡️ Defensiva</option>
+                    <option value="midfield">⚡ Media</option>
+                    <option value="offensive">⚔️ Ofensiva</option>
+                </select>
+            </div>
+            <button class="btn btn-success" onclick="saveEventEdit()">Guardar Cambios</button>
+            <button class="btn btn-secondary" onclick="closeEditEventModal()">Cancelar</button>
         </div>
     </div>
 
@@ -326,6 +426,7 @@
         var currentUser = null;
         var currentLicense = null;
         var currentMatch = null;
+        var currentEditingEvent = null;
         var matchPlayers = { own: [], rival: [] };
         var selectedZone = '';
         var matchMinute = 0;
@@ -539,6 +640,7 @@
         function showTab(tab) {
             document.getElementById('matchesTab').classList.add('hidden');
             document.getElementById('playersTab').classList.add('hidden');
+            document.getElementById('historyTab').classList.add('hidden');
             document.getElementById('newMatchTab').classList.add('hidden');
             document.getElementById('matchDetailTab').classList.add('hidden');
 
@@ -548,10 +650,110 @@
             } else if (tab === 'players') {
                 document.getElementById('playersTab').classList.remove('hidden');
                 loadPlayers();
+            } else if (tab === 'history') {
+                document.getElementById('historyTab').classList.remove('hidden');
+                loadHistory();
             } else if (tab === 'newMatch') {
                 document.getElementById('newMatchTab').classList.remove('hidden');
                 document.getElementById('matchDate').valueAsDate = new Date();
             }
+        }
+
+        function loadHistory() {
+            fetch(SUPABASE_URL + '/matches?team_id=eq.' + currentUser.team_id + '&status=eq.finished&select=*&order=match_date.desc', {
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(matches) {
+                if (matches.length === 0) {
+                    document.getElementById('historyContent').innerHTML = '<p style="text-align: center; padding: 40px; color: #999;">No hay partidos finalizados todavía.</p>';
+                    return;
+                }
+
+                var html = '';
+                var promises = [];
+
+                for (var i = 0; i < matches.length; i++) {
+                    promises.push(loadMatchHistory(matches[i]));
+                }
+
+                Promise.all(promises).then(function(results) {
+                    for (var i = 0; i < results.length; i++) {
+                        html += results[i];
+                    }
+                    document.getElementById('historyContent').innerHTML = html;
+                });
+            });
+        }
+
+        function loadMatchHistory(match) {
+            return fetch(SUPABASE_URL + '/match_events?match_id=eq.' + match.id + '&select=*', {
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(events) {
+                var stats = calculateStats(events);
+                var date = new Date(match.match_date).toLocaleDateString('es-ES');
+                var score = match.is_home ? match.home_score + ' - ' + match.away_score : match.away_score + ' - ' + match.home_score;
+                var rival = (match.is_home ? 'vs ' : '@ ') + match.rival_name;
+
+                var html = '<div class="card" style="margin-bottom: 20px;">';
+                html += '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">';
+                html += '<h3>' + rival + ' - ' + date + '</h3>';
+                html += '<div style="font-size: 32px; font-weight: bold; color: #ec4899; margin: 10px 0;">' + score + '</div>';
+                html += '<span class="badge badge-finished">' + (match.competition || 'Partido') + '</span>';
+                html += '</div>';
+
+                html += '<div class="stats-grid">';
+                html += '<div class="stat-card own"><div class="stat-label">Goles</div><div class="stat-value">' + stats.own.goals + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Goles</div><div class="stat-value">' + stats.rival.goals + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Tiros</div><div class="stat-value">' + stats.own.shots + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Tiros</div><div class="stat-value">' + stats.rival.shots + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Tiros a Puerta</div><div class="stat-value">' + stats.own.shotsOnTarget + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Tiros a Puerta</div><div class="stat-value">' + stats.rival.shotsOnTarget + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Pases</div><div class="stat-value">' + stats.own.passes + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Pases</div><div class="stat-value">' + stats.rival.passes + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Precisión Pases</div><div class="stat-value">' + stats.own.passAccuracy + '%</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Precisión Pases</div><div class="stat-value">' + stats.rival.passAccuracy + '%</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Entradas</div><div class="stat-value">' + stats.own.tackles + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Entradas</div><div class="stat-value">' + stats.rival.tackles + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Faltas</div><div class="stat-value">' + stats.own.fouls + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Faltas</div><div class="stat-value">' + stats.rival.fouls + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Tarjetas</div><div class="stat-value">' + stats.own.cards + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Tarjetas</div><div class="stat-value">' + stats.rival.cards + '</div></div>';
+                html += '</div></div>';
+
+                return html;
+            });
+        }
+
+        function calculateStats(events) {
+            var stats = {
+                own: { shots: 0, shotsOnTarget: 0, goals: 0, passes: 0, passesCompleted: 0, passAccuracy: 0, tackles: 0, fouls: 0, cards: 0, corners: 0, assists: 0, saves: 0 },
+                rival: { shots: 0, shotsOnTarget: 0, goals: 0, passes: 0, passesCompleted: 0, passAccuracy: 0, tackles: 0, fouls: 0, cards: 0, corners: 0, assists: 0, saves: 0 }
+            };
+
+            for (var i = 0; i < events.length; i++) {
+                var e = events[i];
+                var team = e.team_type;
+                
+                if (e.event_type === 'goal') stats[team].goals++;
+                if (e.event_type.includes('shot')) stats[team].shots++;
+                if (e.event_type === 'shot_on_target') stats[team].shotsOnTarget++;
+                if (e.event_type.includes('pass')) stats[team].passes++;
+                if (e.event_type === 'pass_completed') stats[team].passesCompleted++;
+                if (e.event_type.includes('tackle')) stats[team].tackles++;
+                if (e.event_type === 'tackle_foul' || e.event_type === 'foul') stats[team].fouls++;
+                if (e.event_type.includes('card')) stats[team].cards++;
+                if (e.event_type === 'corner') stats[team].corners++;
+                if (e.event_type === 'assist') stats[team].assists++;
+                if (e.event_type === 'save') stats[team].saves++;
+            }
+
+            stats.own.passAccuracy = stats.own.passes > 0 ? Math.round((stats.own.passesCompleted / stats.own.passes) * 100) : 0;
+            stats.rival.passAccuracy = stats.rival.passes > 0 ? Math.round((stats.rival.passesCompleted / stats.rival.passes) * 100) : 0;
+
+            return stats;
         }
 
         function loadPlayers() {
@@ -577,7 +779,7 @@
                         html += '<td><span class="player-number">' + (p.player_number || '-') + '</span></td>';
                         html += '<td>' + p.full_name + '</td>';
                         html += '<td>' + (p.email || '-') + '</td>';
-                        html += '<td><button class="btn btn-danger" style="padding: 6px 12px; font-size: 14px;" onclick="deletePlayer(\'' + p.id + '\')">Eliminar</button></td>';
+                        html += '<td><button class="btn btn-danger btn-small" onclick="deletePlayer(\'' + p.id + '\')">Eliminar</button></td>';
                         html += '</tr>';
                     }
                 }
@@ -701,7 +903,7 @@
                         html += '<td>' + (m.competition || '-') + '</td>';
                         html += '<td style="font-weight: bold;">' + score + '</td>';
                         html += '<td>' + badge + '</td>';
-                        html += '<td><button class="btn" style="padding: 6px 12px; font-size: 14px;" onclick="viewMatch(\'' + m.id + '\')">Ver Detalle</button></td>';
+                        html += '<td><button class="btn btn-small" onclick="viewMatch(\'' + m.id + '\')">Ver Detalle</button></td>';
                         html += '</tr>';
                     }
                 }
@@ -757,6 +959,92 @@
             });
         }
 
+        // NUEVA FUNCIÓN: Eliminar partido
+        function deleteMatch() {
+            if (!confirm('¿Estás seguro de eliminar este partido? Se borrarán todos los eventos y estadísticas asociados.')) return;
+
+            // Primero eliminar eventos
+            fetch(SUPABASE_URL + '/match_events?match_id=eq.' + currentMatch.id, {
+                method: 'DELETE',
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+            })
+            .then(function() {
+                // Luego eliminar jugadores del partido
+                return fetch(SUPABASE_URL + '/match_players?match_id=eq.' + currentMatch.id, {
+                    method: 'DELETE',
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+                });
+            })
+            .then(function() {
+                // Finalmente eliminar el partido
+                return fetch(SUPABASE_URL + '/matches?id=eq.' + currentMatch.id, {
+                    method: 'DELETE',
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+                });
+            })
+            .then(function() {
+                alert('Partido eliminado correctamente');
+                showTab('matches');
+            })
+            .catch(function() {
+                alert('Error al eliminar el partido');
+            });
+        }
+
+        // NUEVA FUNCIÓN: Mostrar modal para editar partido
+        function showEditMatch() {
+            document.getElementById('editRivalName').value = currentMatch.rival_name;
+            document.getElementById('editMatchDate').value = currentMatch.match_date;
+            document.getElementById('editCompetition').value = currentMatch.competition || '';
+            document.getElementById('editIsHome').value = currentMatch.is_home.toString();
+            document.getElementById('editMatchModal').classList.add('show');
+        }
+
+        // NUEVA FUNCIÓN: Cerrar modal de editar partido
+        function closeEditMatchModal() {
+            document.getElementById('editMatchModal').classList.remove('show');
+        }
+
+        // NUEVA FUNCIÓN: Guardar cambios del partido
+        function saveMatchEdit() {
+            var rivalName = document.getElementById('editRivalName').value.trim();
+            var matchDate = document.getElementById('editMatchDate').value;
+            var competition = document.getElementById('editCompetition').value.trim();
+            var isHome = document.getElementById('editIsHome').value === 'true';
+
+            if (!rivalName || !matchDate) {
+                alert('Nombre del rival y fecha son obligatorios');
+                return;
+            }
+
+            fetch(SUPABASE_URL + '/matches?id=eq.' + currentMatch.id, {
+                method: 'PATCH',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rival_name: rivalName,
+                    match_date: matchDate,
+                    competition: competition,
+                    is_home: isHome
+                })
+            })
+            .then(function() {
+                currentMatch.rival_name = rivalName;
+                currentMatch.match_date = matchDate;
+                currentMatch.competition = competition;
+                currentMatch.is_home = isHome;
+                closeEditMatchModal();
+                displayMatchDetail();
+                alert('Partido actualizado correctamente');
+            })
+            .catch(function() {
+                alert('Error al actualizar el partido');
+            });
+        }
+
         function displayMatchDetail() {
             document.getElementById('matchesTab').classList.add('hidden');
             document.getElementById('matchDetailTab').classList.remove('hidden');
@@ -775,6 +1063,7 @@
                 document.getElementById('finishMatchBtn').style.display = 'none';
                 document.getElementById('playerSelectionSection').style.display = 'block';
                 document.getElementById('taggingSection').classList.add('hidden');
+                document.getElementById('statsSection').classList.add('hidden');
                 loadMatchPlayers();
             } else if (currentMatch.status === 'in_progress') {
                 statusBadge.textContent = 'En Curso';
@@ -1062,6 +1351,95 @@
             });
         }
 
+        // NUEVA FUNCIÓN: Eliminar evento
+        function deleteEvent(eventId, eventType, teamType) {
+            if (!confirm('¿Eliminar este evento?')) return;
+
+            fetch(SUPABASE_URL + '/match_events?id=eq.' + eventId, {
+                method: 'DELETE',
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+            })
+            .then(function() {
+                // Si era un gol, actualizar marcador
+                if (eventType === 'goal') {
+                    if (teamType === 'own') {
+                        if (currentMatch.is_home) currentMatch.home_score--;
+                        else currentMatch.away_score--;
+                    } else {
+                        if (currentMatch.is_home) currentMatch.away_score--;
+                        else currentMatch.home_score--;
+                    }
+                    
+                    return fetch(SUPABASE_URL + '/matches?id=eq.' + currentMatch.id, {
+                        method: 'PATCH',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': 'Bearer ' + SUPABASE_KEY,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            home_score: currentMatch.home_score,
+                            away_score: currentMatch.away_score
+                        })
+                    })
+                    .then(function() {
+                        var score = currentMatch.is_home ? currentMatch.home_score + ' - ' + currentMatch.away_score : currentMatch.away_score + ' - ' + currentMatch.home_score;
+                        document.getElementById('scoreDisplay').textContent = score;
+                    });
+                }
+            })
+            .then(function() {
+                loadMatchEvents();
+                loadMatchStats();
+            });
+        }
+
+        // NUEVA FUNCIÓN: Mostrar modal para editar evento
+        function showEditEvent(eventId, minute, zone) {
+            currentEditingEvent = eventId;
+            document.getElementById('editEventMinute').value = minute;
+            document.getElementById('editEventZone').value = zone;
+            document.getElementById('editEventModal').classList.add('show');
+        }
+
+        // NUEVA FUNCIÓN: Cerrar modal de editar evento
+        function closeEditEventModal() {
+            document.getElementById('editEventModal').classList.remove('show');
+            currentEditingEvent = null;
+        }
+
+        // NUEVA FUNCIÓN: Guardar cambios del evento
+        function saveEventEdit() {
+            var minute = parseInt(document.getElementById('editEventMinute').value);
+            var zone = document.getElementById('editEventZone').value;
+
+            if (!minute || minute < 0) {
+                alert('El minuto debe ser un valor válido');
+                return;
+            }
+
+            fetch(SUPABASE_URL + '/match_events?id=eq.' + currentEditingEvent, {
+                method: 'PATCH',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    minute: minute,
+                    field_zone: zone
+                })
+            })
+            .then(function() {
+                closeEditEventModal();
+                loadMatchEvents();
+                alert('Evento actualizado correctamente');
+            })
+            .catch(function() {
+                alert('Error al actualizar el evento');
+            });
+        }
+
         function loadMatchEvents() {
             fetch(SUPABASE_URL + '/match_events?match_id=eq.' + currentMatch.id + '&select=*&order=minute.desc,created_at.desc', {
                 headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
@@ -1069,26 +1447,19 @@
             .then(function(r) { return r.json(); })
             .then(function(events) {
                 var eventNames = {
-                    'goal': '⚽ Gol',
-                    'shot_on_target': '🎯 Tiro a Puerta',
-                    'shot_off_target': '📤 Tiro Fuera',
-                    'shot_blocked': '🚫 Tiro Bloqueado',
-                    'pass_completed': '✅ Pase Completado',
-                    'pass_failed': '❌ Pase Fallado',
-                    'interception': '🛡️ Intercepción',
-                    'tackle_won': '🦵 Entrada Limpia',
-                    'tackle_foul': '⚠️ Entrada con Falta',
-                    'clearance': '🧤 Despeje',
-                    'recovery': '📍 Recuperación',
-                    'ball_lost': '❌ Pérdida',
-                    'yellow_card': '🟨 Amarilla',
-                    'red_card': '🟥 Roja'
+                    'goal': '⚽ Gol', 'shot_on_target': '🎯 Tiro a Puerta', 'shot_off_target': '📤 Tiro Fuera',
+                    'shot_blocked': '🚫 Tiro Bloqueado', 'pass_completed': '✅ Pase Completado', 'pass_failed': '❌ Pase Fallado',
+                    'assist': '🅰️ Asistencia', 'dribble_success': '🏃 Regate', 'corner': '🚩 Córner',
+                    'interception': '🛡️ Intercepción', 'tackle_won': '🦵 Entrada Limpia', 'tackle_foul': '⚠️ Falta',
+                    'clearance': '🧤 Despeje', 'recovery': '📍 Recuperación', 'save': '🧤 Parada',
+                    'ball_lost': '❌ Pérdida', 'offside': '⚠️ Fuera de Juego', 'foul': '⚠️ Falta',
+                    'yellow_card': '🟨 Amarilla', 'red_card': '🟥 Roja'
                 };
 
-                var html = '<table><thead><tr><th>Min</th><th>Jugador</th><th>Equipo</th><th>Evento</th><th>Zona</th></tr></thead><tbody>';
+                var html = '<table><thead><tr><th>Min</th><th>Jugador</th><th>Equipo</th><th>Evento</th><th>Zona</th><th>Acciones</th></tr></thead><tbody>';
                 
                 if (events.length === 0) {
-                    html += '<tr><td colspan="5" style="text-align: center; color: #999;">No hay eventos registrados</td></tr>';
+                    html += '<tr><td colspan="6" style="text-align: center; color: #999;">No hay eventos registrados</td></tr>';
                 } else {
                     for (var i = 0; i < events.length; i++) {
                         var e = events[i];
@@ -1098,6 +1469,10 @@
                         html += '<td>' + (e.team_type === 'own' ? 'Mi Equipo' : 'Rival') + '</td>';
                         html += '<td>' + eventNames[e.event_type] + '</td>';
                         html += '<td>' + e.field_zone + '</td>';
+                        html += '<td>';
+                        html += '<button class="btn btn-warning btn-small" onclick="showEditEvent(\'' + e.id + '\', ' + e.minute + ', \'' + e.field_zone + '\')">Editar</button>';
+                        html += '<button class="btn btn-danger btn-small" onclick="deleteEvent(\'' + e.id + '\', \'' + e.event_type + '\', \'' + e.team_type + '\')">Eliminar</button>';
+                        html += '</td>';
                         html += '</tr>';
                     }
                 }
@@ -1112,30 +1487,31 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(events) {
-                var stats = {
-                    own: { shots: 0, goals: 0, passes: 0, tackles: 0, fouls: 0, cards: 0 },
-                    rival: { shots: 0, goals: 0, passes: 0, tackles: 0, fouls: 0, cards: 0 }
-                };
-
-                for (var i = 0; i < events.length; i++) {
-                    var e = events[i];
-                    var team = e.team_type;
-                    
-                    if (e.event_type === 'goal') stats[team].goals++;
-                    if (e.event_type.includes('shot')) stats[team].shots++;
-                    if (e.event_type.includes('pass')) stats[team].passes++;
-                    if (e.event_type.includes('tackle')) stats[team].tackles++;
-                    if (e.event_type === 'tackle_foul') stats[team].fouls++;
-                    if (e.event_type.includes('card')) stats[team].cards++;
-                }
+                var stats = calculateStats(events);
 
                 var html = '<div class="stats-grid">';
-                html += '<div class="stat-card"><div class="stat-label">Tiros (Mi Equipo)</div><div class="stat-value">' + stats.own.shots + '</div></div>';
-                html += '<div class="stat-card"><div class="stat-label">Tiros (Rival)</div><div class="stat-value">' + stats.rival.shots + '</div></div>';
-                html += '<div class="stat-card"><div class="stat-label">Pases (Mi Equipo)</div><div class="stat-value">' + stats.own.passes + '</div></div>';
-                html += '<div class="stat-card"><div class="stat-label">Pases (Rival)</div><div class="stat-value">' + stats.rival.passes + '</div></div>';
-                html += '<div class="stat-card"><div class="stat-label">Entradas (Mi Equipo)</div><div class="stat-value">' + stats.own.tackles + '</div></div>';
-                html += '<div class="stat-card"><div class="stat-label">Entradas (Rival)</div><div class="stat-value">' + stats.rival.tackles + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Goles (Mi Equipo)</div><div class="stat-value">' + stats.own.goals + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Goles (Rival)</div><div class="stat-value">' + stats.rival.goals + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Tiros</div><div class="stat-value">' + stats.own.shots + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Tiros</div><div class="stat-value">' + stats.rival.shots + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Tiros a Puerta</div><div class="stat-value">' + stats.own.shotsOnTarget + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Tiros a Puerta</div><div class="stat-value">' + stats.rival.shotsOnTarget + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Pases Totales</div><div class="stat-value">' + stats.own.passes + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Pases Totales</div><div class="stat-value">' + stats.rival.passes + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Precisión de Pase</div><div class="stat-value">' + stats.own.passAccuracy + '%</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Precisión de Pase</div><div class="stat-value">' + stats.rival.passAccuracy + '%</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Entradas</div><div class="stat-value">' + stats.own.tackles + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Entradas</div><div class="stat-value">' + stats.rival.tackles + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Asistencias</div><div class="stat-value">' + stats.own.assists + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Asistencias</div><div class="stat-value">' + stats.rival.assists + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Córners</div><div class="stat-value">' + stats.own.corners + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Córners</div><div class="stat-value">' + stats.rival.corners + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Paradas</div><div class="stat-value">' + stats.own.saves + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Paradas</div><div class="stat-value">' + stats.rival.saves + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Faltas</div><div class="stat-value">' + stats.own.fouls + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Faltas</div><div class="stat-value">' + stats.rival.fouls + '</div></div>';
+                html += '<div class="stat-card own"><div class="stat-label">Tarjetas</div><div class="stat-value">' + stats.own.cards + '</div></div>';
+                html += '<div class="stat-card rival"><div class="stat-label">Tarjetas</div><div class="stat-value">' + stats.rival.cards + '</div></div>';
                 html += '</div>';
 
                 document.getElementById('matchStats').innerHTML = html;
